@@ -2,8 +2,8 @@
 pragma solidity ^0.8.26;
 
 import  "forge-std/Test.sol";
-import {StakingRewards, IERC20} from "src/Staking.sol";
-import {MockERC20} from "test/MockErc20.sol";
+import {StakingRewards, IERC20} from "src/StakingRewards.sol";
+import {MockERC20} from "src/MockErc20.sol";
 
 contract StakingTest is Test {
     StakingRewards staking;
@@ -76,16 +76,19 @@ contract StakingTest is Test {
         staking.setRewardsDuration(1 weeks);
 
         // simulate owner calls setReward successfully
-        vm.prank(owner);
+        vm.startPrank(owner);
         staking.setRewardsDuration(1 weeks);
         assertEq(staking.duration(), 1 weeks, "duration not updated correctly");
+        
         // log block.timestamp
         console.log("current time", block.timestamp);
+
         // move time foward 
         vm.warp(block.timestamp + 200);
+
         // notify rewards 
         deal(address(rewardToken), owner, 100 ether);
-        vm.startPrank(owner); 
+        // vm.startPrank(owner); 
         IERC20(address(rewardToken)).transfer(address(staking), 100 ether);
         
         // trigger revert
@@ -108,5 +111,31 @@ contract StakingTest is Test {
     
     }
 
+    function test_getReward() public {
+        test_can_stake_successfully();
+        test_notify_Rewards();
+
+
+        // move time foward by 1 day
+        vm.warp(block.timestamp + 1 days);
+        vm.startPrank(bob);
+
+        // check earned rewards
+        uint256 earnedRewards = staking.earned(address(bob));
+        console.log("earned rewards after 1 day", earnedRewards);
+        assertGt(earnedRewards, 0, "earned rewards should be greater than zero");
+
+        // claim rewards
+        uint256 rewardBalanceBefore = rewardToken.balanceOf(bob);
+        staking.getReward();
+        uint256 rewardBalanceAfter = rewardToken.balanceOf(bob);
+        assertEq(rewardBalanceAfter - rewardBalanceBefore, earnedRewards, "claimed rewards not correct");
+    }
+
+    function test_earned_no_stake_no_reward() public {
+        // check earned rewards without staking
+        uint256 earnedRewards = staking.earned(address(bob));
+        assertEq(earnedRewards, 0, "earned rewards should be zero");
+    }
 
 }
